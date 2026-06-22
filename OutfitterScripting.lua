@@ -260,12 +260,12 @@ function Outfitter:GenerateSmartUnequipScript(pEventID, pDescription, pUnequipDe
 	if pIncludeSpecEnables then
 		vScript = vScript ..
 [[
--- $SETTING Tree1={type="boolean", label=Outfitter:GetTalentTreeName(1), default=true}
--- $SETTING Tree2={type="boolean", label=Outfitter:GetTalentTreeName(2), default=true}
--- $SETTING Tree3={type="boolean", label=Outfitter:GetTalentTreeName(3), default=true}
--- $SETTING Tree4={type="boolean", label=Outfitter:GetTalentTreeName(4), default=true}
+-- $SETTING Tree1={type="boolean", label=Outfitter:GetSpecName(1), default=true}
+-- $SETTING Tree2={type="boolean", label=Outfitter:GetSpecName(2), default=true}
+-- $SETTING Tree3={type="boolean", label=Outfitter:GetSpecName(3), default=true}
+-- $SETTING Tree4={type="boolean", label=Outfitter:GetSpecName(4), default=true}
 
--- Unequip and return if they're not in an enabled spec
+-- Unequip and return if they're not in the enabled specialization
 
 if not setting.Tree1 and GetSpecialization() == 1
 or not setting.Tree2 and GetSpecialization() == 2
@@ -309,10 +309,10 @@ function Outfitter:GenerateShapeshiftScript(pEventID, pDescription, pAllowComple
 -- $SETTING DisableBG={type="boolean", label="Disable in Battlegrounds", default=false}
 -- $SETTING DisablePVP={type="boolean", label="Disable while PvP flagged", default=false}
 -- $SETTING UnequipComplete={type="boolean", label="Allow Complete outfits to unequip", default=false}
--- $SETTING Tree1={type="boolean", label=Outfitter:GetTalentTreeName(1), default=true}
--- $SETTING Tree2={type="boolean", label=Outfitter:GetTalentTreeName(2), default=true}
--- $SETTING Tree3={type="boolean", label=Outfitter:GetTalentTreeName(3), default=true}
--- $SETTING Tree4={type="boolean", label=Outfitter:GetTalentTreeName(4), default=true}
+-- $SETTING Tree1={type="boolean", label=Outfitter:GetSpecName(1), default=true}
+-- $SETTING Tree2={type="boolean", label=Outfitter:GetSpecName(2), default=true}
+-- $SETTING Tree3={type="boolean", label=Outfitter:GetSpecName(3), default=true}
+-- $SETTING Tree4={type="boolean", label=Outfitter:GetSpecName(4), default=true}
 
 -- Just return if they're PvP'ing and don't want the outfit changing
 if (setting.DisableBG and Outfitter:InBattlegroundZone())
@@ -320,7 +320,7 @@ or (setting.DisablePVP and UnitIsPVP("player")) then
     return
 end
 
--- Return if they're not in an enabled spec
+-- Return if they're not in the enabled specialization
 if not setting.Tree1 and GetSpecialization() == 1
 or not setting.Tree2 and GetSpecialization() == 2
 or not setting.Tree3 and GetSpecialization() == 3
@@ -361,10 +361,10 @@ function Outfitter:GenerateDruidShapeshiftScript(pEventID, pDescription)
 -- $SETTING DisableBG={type="boolean", label="Don't equip in Battlegrounds", default=false}
 -- $SETTING DisablePVP={type="boolean", label="Don't equip while PvP flagged", default=false}
 -- $SETTING UnequipComplete={type="boolean", label="Allow Complete outfits to unequip", default=false}
--- $SETTING Tree1={type="boolean", label=Outfitter:GetTalentTreeName(1), default=true}
--- $SETTING Tree2={type="boolean", label=Outfitter:GetTalentTreeName(2), default=true}
--- $SETTING Tree3={type="boolean", label=Outfitter:GetTalentTreeName(3), default=true}
--- $SETTING Tree4={type="boolean", label=Outfitter:GetTalentTreeName(4), default=true}
+-- $SETTING Tree1={type="boolean", label=Outfitter:GetSpecName(1), default=true}
+-- $SETTING Tree2={type="boolean", label=Outfitter:GetSpecName(2), default=true}
+-- $SETTING Tree3={type="boolean", label=Outfitter:GetSpecName(3), default=true}
+-- $SETTING Tree4={type="boolean", label=Outfitter:GetSpecName(4), default=true}
 
 -- Just return if they're PvP'ing and don't want the outfit changing
 
@@ -373,7 +373,7 @@ or (setting.DisablePVP and UnitIsPVP("player")) then
     return
 end
 
--- Return if they're not in an enabled spec
+-- Return if they're not in the enabled specialization
 if not setting.Tree1 and GetSpecialization() == 1
 or not setting.Tree2 and GetSpecialization() == 2
 or not setting.Tree3 and GetSpecialization() == 3
@@ -685,15 +685,15 @@ end
 ]],
 	},
 	{
-		Name = "Talent Tree",
-		ID = "TalentTree",
+		Name = "Specialization",
+		ID = "TalentTree",  -- ID kept for saved-settings compatibility
 		Category = "GENERAL",
-		Script = Outfitter:GenerateScriptHeader("ACTIVE_TALENT_GROUP_CHANGED PLAYER_TALENT_UPDATE", "Equips the outfit when you activate specs for the selected talent tree")..
+		Script = Outfitter:GenerateScriptHeader("ACTIVE_TALENT_GROUP_CHANGED", "Equips the outfit when you switch to the selected specialization")..
 [[
--- $SETTING Tree1={type="boolean", label=Outfitter:GetTalentTreeName(1), default=false}
--- $SETTING Tree2={type="boolean", label=Outfitter:GetTalentTreeName(2), default=false}
--- $SETTING Tree3={type="boolean", label=Outfitter:GetTalentTreeName(3), default=false}
--- $SETTING Tree4={type="boolean", label=Outfitter:GetTalentTreeName(4), default=false}
+-- $SETTING Tree1={type="boolean", label=Outfitter:GetSpecName(1), default=false}
+-- $SETTING Tree2={type="boolean", label=Outfitter:GetSpecName(2), default=false}
+-- $SETTING Tree3={type="boolean", label=Outfitter:GetSpecName(3), default=false}
+-- $SETTING Tree4={type="boolean", label=Outfitter:GetSpecName(4), default=false}
 if setting.Tree1 and GetSpecialization() == 1
 or setting.Tree2 and GetSpecialization() == 2
 or setting.Tree3 and GetSpecialization() == 3
@@ -980,10 +980,10 @@ end
 -- $SETTING DisableInstance={type="boolean", label="Don't equip in dungeons", default=false}
 -- $SETTING DisableBG={type="boolean", label="Don't equip in Battlegrounds", default=false}
 -- $SETTING DisablePVP={type="boolean", label="Don't equip while PvP flagged", default=false}
--- $SETTING Tree1={type="boolean", label=Outfitter:GetTalentTreeName(1), default=true}
--- $SETTING Tree2={type="boolean", label=Outfitter:GetTalentTreeName(2), default=true}
--- $SETTING Tree3={type="boolean", label=Outfitter:GetTalentTreeName(3), default=true}
--- $SETTING Tree4={type="boolean", label=Outfitter:GetTalentTreeName(4), default=true}
+-- $SETTING Tree1={type="boolean", label=Outfitter:GetSpecName(1), default=true}
+-- $SETTING Tree2={type="boolean", label=Outfitter:GetSpecName(2), default=true}
+-- $SETTING Tree3={type="boolean", label=Outfitter:GetSpecName(3), default=true}
+-- $SETTING Tree4={type="boolean", label=Outfitter:GetSpecName(4), default=true}
 
 -- Just return if they're PvP'ing and don't want the outfit changing
 local inInstance, instanceType = IsInInstance()
@@ -993,7 +993,7 @@ or (setting.DisablePVP and UnitIsPVP("player")) then
     return
 end
 
--- Return if they're not in an enabled spec
+-- Return if they're not in the enabled specialization
 if not setting.Tree1 and GetSpecialization() == 1
 or not setting.Tree2 and GetSpecialization() == 2
 or not setting.Tree3 and GetSpecialization() == 3
@@ -1172,7 +1172,18 @@ end
 
 if select(1, ...) ~= "player" then return end
 
-if C_UnitAuras.GetAuraDataByIndex("PLAYER", setting.buffName) then
+-- In Midnight 12.x, GetAuraDataByIndex takes an index, not a name.
+-- Use AuraUtil.FindAuraByName or iterate to find by name.
+local function HasAuraByName(unitToken, auraName)
+    for i = 1, 40 do
+        local data = C_UnitAuras.GetAuraDataByIndex(unitToken, i)
+        if not data then break end
+        if data.name == auraName then return true end
+    end
+    return false
+end
+
+if HasAuraByName("player", setting.buffName) then
     equip = true
 end
 
@@ -1779,12 +1790,12 @@ Outfitter.cScriptCategoryOrder =
 	CLASS = 5,
 }
 
-function Outfitter:InstallTalentTreeScripts()
+function Outfitter:InstallSpecializationScripts()
 	local _, playerClass = UnitClass("player")
 
 	-- Class talent tree scripts
 	for treeIndex = 1, 4 do
-		local name = Outfitter:GetTalentTreeName(treeIndex)
+		local name = Outfitter:GetSpecName(treeIndex)
 		if not name then
 			break
 		end
@@ -1795,7 +1806,7 @@ function Outfitter:InstallTalentTreeScripts()
 			Script = [[
 -- $EVENTS PLAYER_ENTERING_WORLD ACTIVE_TALENT_GROUP_CHANGED
  
--- Prevent the script from doing anything unless the specialization actually changes
+-- Prevent the script from running unless the active specialization actually changed
 local specialization = GetSpecialization()
 if specialization == self.previousSpecialization then
     return
@@ -1839,7 +1850,7 @@ function Outfitter:SortScripts()
 end
 
 function Outfitter:InitializeScripts()
-	Outfitter:InstallTalentTreeScripts()
+	Outfitter:InstallSpecializationScripts()
 	Outfitter:SortScripts()
 end
 
