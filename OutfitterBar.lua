@@ -410,7 +410,7 @@ function Outfitter.OutfitBar:GetCursorTexture()
 	end
 
 	if vType == "spell" and vParam1 and vParam2 then
-		return GetSpellTexture(vParam1, vParam2)
+		return C_Spell and C_Spell.GetSpellTexture(vParam1) or GetSpellTexture(vParam1, vParam2)
 
 	elseif vType == "item" then
 		for _, vInventorySlot in ipairs(Outfitter.cSlotNames) do
@@ -418,7 +418,7 @@ function Outfitter.OutfitBar:GetCursorTexture()
 			local	vItemLink = Outfitter:GetInventorySlotIDLink(vSlotID)
 
 			if vItemLink == vParam2 then
-				return GetInventoryItemTexture("player", vSlotID)
+				return OutfitterAPI:GetInventoryItemTexture("player", vSlotID)
 			end
 		end
 
@@ -1219,9 +1219,9 @@ function Outfitter.OutfitBar.TextureSets.Spellbook:Activate()
 	local usedIconIDs = {}
 
 	-- Insert the profession icons
-	local professions = {GetProfessions()}
+	local professions = {OutfitterAPI:GetProfessions()}
 	for _, professionID in ipairs(professions) do
-		local name, iconID = GetProfessionInfo(professionID)
+		local name, iconID = OutfitterAPI:GetProfessionInfo(professionID)
 		if not usedIconIDs[iconID] then
 			table.insert(self.TextureList, iconID)
 			usedIconIDs[iconID] = true
@@ -1229,8 +1229,8 @@ function Outfitter.OutfitBar.TextureSets.Spellbook:Activate()
 	end
 
 	-- Insert the spellbook category icons together
-	for tabIndex = 1, MAX_SKILLLINE_TABS do
-		local	categoryName, categoryIconID, categoryOffset, categoryNumSpells = GetSpellTabInfo(tabIndex)
+	for tabIndex = 1, OutfitterAPI:GetNumSpellTabs() do
+		local categoryName, categoryIconID, categoryOffset, categoryNumSpells = OutfitterAPI:GetSpellTabInfo(tabIndex)
 
 		if not categoryName then
 			break
@@ -1243,15 +1243,15 @@ function Outfitter.OutfitBar.TextureSets.Spellbook:Activate()
 	end
 
 	-- Now insert the icons from each category
-	for tabIndex = 1, MAX_SKILLLINE_TABS do
-		local	categoryName, categoryIconID, categoryOffset, categoryNumSpells = GetSpellTabInfo(tabIndex)
+	for tabIndex = 1, OutfitterAPI:GetNumSpellTabs() do
+		local categoryName, categoryIconID, categoryOffset, categoryNumSpells = OutfitterAPI:GetSpellTabInfo(tabIndex)
 
 		if not categoryName then
 			break
 		end
 
 		for spellIndex = categoryOffset + 1, categoryOffset + categoryNumSpells do
-			local spellIconID = GetSpellTexture(spellIndex, BOOKTYPE_SPELL)
+			local spellIconID = OutfitterAPI:GetSpellTexture(spellIndex, BOOKTYPE_SPELL)
 
 			if spellIconID and not usedIconIDs[spellIconID] then
 				table.insert(self.TextureList, spellIconID)
@@ -1288,7 +1288,7 @@ function Outfitter.OutfitBar.TextureSets.Inventory:Activate()
 
 	for _, vInventorySlot in ipairs(Outfitter.cSlotNames) do
 		local	vSlotID = Outfitter.cSlotIDs[vInventorySlot]
-		local vTexture = GetInventoryItemTexture("player", vSlotID)
+		local vTexture = OutfitterAPI:GetInventoryItemTexture("player", vSlotID)
 
 		if vTexture and not vUsedTextures[vTexture] then
 			table.insert(self.TextureList, vTexture)
@@ -1535,9 +1535,9 @@ function Outfitter.OutfitBar._SettingsDialog:NewSlider(pTitle, pMinValue, pMaxVa
 	vSlider:SetMinMaxValues(pMinValue, pMaxValue)
 	vSlider:SetScript("OnValueChanged", self.Slider_OnValueChanged)
 
-	vSlider.Text = getglobal(vName.."Text")
-	vSlider.LowText = getglobal(vName.."Low")
-	vSlider.HighText = getglobal(vName.."High")
+	vSlider.Text = (_G[vName.."Text"])
+	vSlider.LowText = (_G[vName.."Low"])
+	vSlider.HighText = (_G[vName.."High"])
 
 	vSlider.Text:SetText(pTitle)
 
@@ -1572,7 +1572,7 @@ function Outfitter.OutfitBar._SettingsDialog:NewCheckbutton(pTitle, pOnClickFunc
 
 	vCheckbutton.OnClickFunction = pOnClickFunction
 	vCheckbutton:SetScript("OnClick", self.Checkbutton_OnClick)
-	vCheckbutton.Text = getglobal(vName.."Text")
+	vCheckbutton.Text = (_G[vName.."Text"])
 	vCheckbutton.Text:SetText(pTitle)
 
 	return vCheckbutton
