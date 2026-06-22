@@ -292,17 +292,17 @@ function Outfitter._EditScriptDialog:ConstructSettingsFields(pSettings)
 				
 				-- Set the label
 				
-				local vLabelText = getglobal(vFrame:GetName().."Label")
+				local vLabelText = (_G[vFrame:GetName().."Label"])
 				
 				if not vLabelText then
-					vLabelText = getglobal(vFrame:GetName().."Text")
+					vLabelText = (_G[vFrame:GetName().."Text"])
 				end
 				
 				vLabelText:SetText(vDescriptor.Label)
 				
 				-- Set the suffix
 				
-				local vSuffixText = getglobal(vFrame:GetName().."Suffix")
+				local vSuffixText = (_G[vFrame:GetName().."Suffix"])
 				
 				if vSuffixText then
 					vSuffixText:SetText(vDescriptor.Suffix or "")
@@ -317,9 +317,9 @@ function Outfitter._EditScriptDialog:ConstructSettingsFields(pSettings)
 						vType = "Zone"
 					end
 					
-					local vZoneButton = getglobal(vFrame:GetName().."ZoneButton")
+					local vZoneButton = (_G[vFrame:GetName().."ZoneButton"])
 					
-					vZoneButton.GetTextFunc = getglobal("Get"..vType.."Text")
+					vZoneButton.GetTextFunc = (_G["Get"..vType.."Text"])
 					vZoneButton:SetText(string.format(Outfitter.cInsertFormat, vZoneButton.GetTextFunc()))
 				end
 				
@@ -354,7 +354,7 @@ function Outfitter._EditScriptDialog:GetScriptSettings()
 			
 			elseif vType == "stringtable"
 			or vType == "zonelist" then
-				local vEditBox = getglobal(vFrame:GetName().."EditBox")
+				local vEditBox = (_G[vFrame:GetName().."EditBox"])
 
 				vValue = {}
 				
@@ -404,7 +404,7 @@ function Outfitter._EditScriptDialog:SetScriptSettings()
 		
 		elseif vType == "stringtable"
 		or vType == "zonelist" then
-			local vEditBox = getglobal(vFrame:GetName().."EditBox")
+			local vEditBox = (_G[vFrame:GetName().."EditBox"])
 			
 			if type(vValue) == "table" then
 				vEditBox:SetText(table.concat(vValue, "\n"))
