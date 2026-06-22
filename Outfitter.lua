@@ -793,6 +793,7 @@ Outfitter.cCategoryDescriptions =
 	Accessory = Outfitter.cAccessoryCategoryDescription,
 	OddsNEnds = Outfitter.cOddsNEndsCategoryDescription,
 	BoEs = Outfitter.cBoEsCategoryDescription,
+	Warbound = Outfitter.cWarboundCategoryDescription,
 }
 
 Outfitter.cSlotNames =
@@ -1189,7 +1190,7 @@ function Outfitter:OnLoad()
 end
 
 function Outfitter:OnShow()
-	self.SetFrameLevel(OutfitterFrame, PaperDollFrame:GetFrameLevel() - 1)
+	self.SetFrameLevel(OutfitterFrame, (PaperDollFrame and PaperDollFrame:GetFrameLevel() or 2) - 1)
 
 	self:ShowPanel(3) -- Always switch to the main view when showing the window
 end
@@ -1889,6 +1890,13 @@ end
 
 function Outfitter:TalentsChanged()
 	self.CanDualWield2H = self.PlayerClass == "WARRIOR" and GetSpecialization() == 2
+
+	-- Ensure default outfits exist for all current specializations.
+	-- CreateEmptySpecialOccasionOutfit is a no-op for outfits that already exist.
+	if self.Settings and self.Settings.Outfits then
+		self:InitializeTalentTreeOutfits()
+		self:InstallDefaultSpecializationIcons()
+	end
 end
 
 function Outfitter:SetScript(pOutfit, pScript)
@@ -2790,13 +2798,23 @@ function Outfitter:Update(pOutfitsChanged)
 
 		if vItemIndex < self.cMaxDisplayedItems
 		and vInventoryCache.UnusedItems then
+			table.sort(vInventoryCache.UnusedItems, function(a, b) return (a.Level or 0) > (b.Level or 0) end)
 			vItemIndex, vFirstItemIndex = self:AddOutfitItemsToList(vInventoryCache.UnusedItems, "OddsNEnds", vItemIndex, vFirstItemIndex)
+		end
+
+		-- Add the Warbound until equipped items
+		local vWarboundItems = vInventoryCache:GetWarboundItems()
+		if vItemIndex < self.cMaxDisplayedItems
+		and vWarboundItems and #vWarboundItems > 0 then
+			table.sort(vWarboundItems, function(a, b) return (a.Level or 0) > (b.Level or 0) end)
+			vItemIndex, vFirstItemIndex = self:AddOutfitItemsToList(vWarboundItems, "Warbound", vItemIndex, vFirstItemIndex)
 		end
 
 		-- Add the BoEs
 		local vBoEItems = vInventoryCache:GetBoEItems()
 		if vItemIndex < self.cMaxDisplayedItems
 		and vBoEItems and #vBoEItems > 0 then
+			table.sort(vBoEItems, function(a, b) return (a.Level or 0) > (b.Level or 0) end)
 			vItemIndex, vFirstItemIndex = self:AddOutfitItemsToList(vBoEItems, "BoEs", vItemIndex, vFirstItemIndex)
 		end
 
@@ -2828,6 +2846,14 @@ function Outfitter:Update(pOutfitsChanged)
 			vTotalNumItems = vTotalNumItems + 1
 			if not self.Collapsed["OddsNEnds"] then
 				vTotalNumItems = vTotalNumItems + #vInventoryCache.UnusedItems
+			end
+		end
+
+		-- Add in the Warbound category
+		if vWarboundItems and #vWarboundItems > 0 then
+			vTotalNumItems = vTotalNumItems + 1
+			if not self.Collapsed["Warbound"] then
+				vTotalNumItems = vTotalNumItems + #vWarboundItems
 			end
 		end
 
@@ -3409,8 +3435,8 @@ function Outfitter:RatingSummary()
 	}
 
 	for vRatingID, vRatingName in ipairs(vRatingIDs) do
-		local vRating = GetCombatRating(vRatingID)
-		local vRatingBonus = GetCombatRatingBonus(vRatingID)
+		local vRating = GetCombatRating and GetCombatRating(vRatingID) or 0
+		local vRatingBonus = GetCombatRatingBonus and GetCombatRatingBonus(vRatingID) or 0
 
 		if vRatingBonus > 0 then
 			self:NoteMessage(vRatingName..": "..(vRating / vRatingBonus))
@@ -4147,7 +4173,11 @@ function Outfitter:GetPlayerAuraStates()
 	end
 
 	while true do
-		local vName, _, vTexture, _, _, _, _, _, _, _, vSpellID = C_UnitAuras.GetAuraDataByIndex("PLAYER", vBuffIndex)
+		-- Midnight 12.x: GetAuraDataByIndex returns an AuraData table, not multi-return
+		local auraData = C_UnitAuras.GetAuraDataByIndex("PLAYER", vBuffIndex)
+		local vName    = auraData and auraData.name
+		local vTexture = auraData and auraData.icon
+		local vSpellID = auraData and auraData.spellId
 
 		if not vName then
 			return self.AuraStates
@@ -4756,6 +4786,9 @@ function Outfitter:Initialize()
 	self:AttachOutfitMethods()
 	self:CheckDatabase()
 
+	-- Sync spec outfits on every login: create missing, remove stale, rename changed
+	self:InitializeTalentTreeOutfits()
+
 	-- Initialize the outfit stack
 
 	self.OutfitStack:Initialize()
@@ -4879,7 +4912,7 @@ function Outfitter:Initialize()
 
 	--
 
-	self.EventLib:RegisterEvent("CHARACTER_POINTS_CHANGED", self.TalentsChanged, self)
+	-- CHARACTER_POINTS_CHANGED removed: pre-Cataclysm talent point event, no longer relevant in Midnight
 	self.EventLib:RegisterEvent("PLAYER_TALENT_UPDATE", self.TalentsChanged, self)
 
 	self:TalentsChanged()
@@ -5182,7 +5215,7 @@ function Outfitter:InitializeSpecialOccasionOutfits()
 	local vInventoryCache = self:GetInventoryCache()
 	local vOutfit
 
-	-- Create talent tree outfits
+	-- Create specialization outfits
 	self:InitializeTalentTreeOutfits()
 
 	-- Create class-specific outfits
@@ -5198,23 +5231,61 @@ function Outfitter:InstallDefaultSpecializationIcons()
 	end
 end
 
-function Outfitter:InitializeTalentTreeOutfits()
+function Outfitter:InitializeTalentTreeOutfits()  -- name kept for saved-settings compat
 	local playerClass = UnitClass("player")
+	local numSpecs = GetNumSpecializations and GetNumSpecializations() or 0
+	if numSpecs == 0 then return end
 
-	local numSpecs = GetNumSpecializations()
+	-- Build the set of valid scriptIDs with expected names/icons for this class
+	local validSpecs = {}
 	for specIndex = 1, numSpecs do
 		local _, specName, _, specIconID = GetSpecializationInfo(specIndex)
-
-		-- Done when the names run out
-		if not specName then
-			return
+		if specName then
+			validSpecs["SPECIALIZATION_"..specIndex] = {
+				name   = playerClass..": "..specName,
+				iconID = specIconID,
+			}
 		end
+	end
 
-		-- Create the outfit
-		local scriptID = "SPECIALIZATION_"..specIndex
-		local outfitName = playerClass..": "..specName
-		local outfit = self:CreateEmptySpecialOccasionOutfit(scriptID, outfitName)
-		outfit:SetIcon(specIconID)
+	-- Remove outfits whose SPECIALIZATION_N ScriptID no longer exists
+	if self.Settings and self.Settings.Outfits then
+		local toDelete = {}
+		for _, vOutfits in pairs(self.Settings.Outfits) do
+			for _, vOutfit in ipairs(vOutfits) do
+				local sid = vOutfit.ScriptID
+				if sid and sid:match("^SPECIALIZATION_%d+$") and not validSpecs[sid] then
+					table.insert(toDelete, vOutfit)
+				end
+			end
+		end
+		for _, vOutfit in ipairs(toDelete) do
+			self:DeleteOutfit(vOutfit)
+		end
+	end
+
+	-- Create or update each current spec outfit, keyed by ScriptID
+	for scriptID, specInfo in pairs(validSpecs) do
+		local existing = self:GetOutfitByScriptID(scriptID)
+		if existing then
+			-- Rename/re-icon if the spec name changed between patches
+			if existing.Name ~= specInfo.name then
+				existing.Name = specInfo.name
+			end
+			existing:SetIcon(specInfo.iconID)
+		else
+			-- Check by name to avoid duplicates with no ScriptID
+			local byName = self:GetOutfitByName(specInfo.name)
+			if byName and not byName.ScriptID then
+				byName.ScriptID = scriptID
+				byName:SetIcon(specInfo.iconID)
+			else
+				local outfit = self:NewEmptyOutfit(specInfo.name)
+				outfit.ScriptID = scriptID
+				outfit:SetIcon(specInfo.iconID)
+				self:AddOutfit(outfit)
+			end
+		end
 	end
 end
 
@@ -5261,9 +5332,11 @@ function Outfitter:FindTooltipLine(pTooltip, pText, pPlain)
 
 		local vLeftText = vLeftTextFrame:GetText()
 
-		if vLeftText
-		and vLeftText:find(pText, nil, pPlain) then
-			return vLineIndex, vLeftTextFrame
+		if vLeftText then
+			local vOk, vFound = pcall(function() return vLeftText:find(pText, nil, pPlain) end)
+			if vOk and vFound then
+				return vLineIndex, vLeftTextFrame
+			end
 		end
 	end -- for vLineIndex
 end
@@ -6132,9 +6205,16 @@ function Outfitter:ToggleUI(pToggleCharWindow)
 end
 
 function Outfitter:OpenUI()
-	CharacterFrame:ShowSubFrame("PaperDollFrame")
-	ShowUIPanel(CharacterFrame)
-	CharacterFrame:RefreshDisplay()
+	-- Midnight 12.x: CharacterFrame:ShowSubFrame still exists but guard defensively
+	if CharacterFrame and CharacterFrame.ShowSubFrame then
+		CharacterFrame:ShowSubFrame("PaperDollFrame")
+	end
+	if CharacterFrame then
+		ShowUIPanel(CharacterFrame)
+		if CharacterFrame.RefreshDisplay then
+			CharacterFrame:RefreshDisplay()
+		end
+	end
 	OutfitterFrame:Show()
 end
 
@@ -6543,7 +6623,13 @@ end
 
 local VOID_DEPOSIT_MAX = 8
 
+-- DepositOutfitToVoidStorage: Void Storage was removed in Dragonflight/TWW/Midnight.
+-- This function is kept as an empty stub to avoid errors from any saved bindings.
 function Outfitter:DepositOutfitToVoidStorage(pOutfit, pUniqueItemsOnly)
+	self:ErrorMessage("Void Storage is no longer available in this version of the game.")
+end
+
+function Outfitter:_DepositOutfitToVoidStorage_legacy(pOutfit, pUniqueItemsOnly)
 	local vUnequipOutfit, vInventoryCache = self:GetDepositList(pOutfit, pUniqueItemsOnly)
 
 	-- Get a list of the deposit slot contents
@@ -6600,7 +6686,7 @@ function Outfitter:DepositOutfitToVoidStorage(pOutfit, pUniqueItemsOnly)
 	end
 
 	self:DispatchOutfitEvent("EDIT_OUTFIT", pOutfit:GetName(), pOutfit)
-end
+end  -- end _DepositOutfitToVoidStorage_legacy
 
 function Outfitter.GameToolTip_OnShow(...)
 	Outfitter.EventLib:DispatchEvent("GAMETOOLTIP_SHOW")
@@ -7209,30 +7295,32 @@ function Outfitter:ShowMissingItems()
 end
 
 function Outfitter:CallCompanionByName(pName)
-	local vNumCompanions = GetNumCompanions("CRITTER")
-	local vLowerName = pName:lower()
-
-	for vIndex = 1, vNumCompanions do
-		if GetCompanionInfo("CRITTER", vIndex):lower() == vLowerName then
-			CallCompanion("CRITTER", vIndex)
-			return
-		end
+	-- GetNumCompanions/GetCompanionInfo/CallCompanion removed in Midnight; use Pet Journal
+	local petID = self:GetCompanionIDByName(pName)
+	if petID then
+		C_PetJournal.SummonPetByGUID(petID)
+	else
+		self:ErrorMessage("CallCompanionByName: couldn't find a pet named %s", tostring(pName))
 	end
-
-	self:ErrorMessage("CallCompanionByName: couldn't find a pet named %s", tostring(pName))
 end
 
 function Outfitter:PlayerIsOnQuestID(pQuestID)
 	local vNumQuests = C_QuestLog.GetNumQuestLogEntries()
 
 	for vQuestIndex = 1, vNumQuests do
-		local vQuestLink = GetQuestLink(vQuestIndex)
+		local vQuestLink = C_QuestLog.GetQuestLink and C_QuestLog.GetQuestLink(vQuestIndex) or GetQuestLink and GetQuestLink(vQuestIndex)
 
 		if vQuestLink then
 			local _, _, vQuestID = vQuestLink:find("|Hquest:(%d+)")
 
 			if tonumber(vQuestID) == pQuestID then
-				local _, _, vComplete = GetQuestLogLeaderBoard(1, vQuestIndex)
+				local vComplete = false
+				if C_QuestLog.GetQuestObjectives then
+					local objs = C_QuestLog.GetQuestObjectives(tonumber(vQuestID))
+					vComplete = objs and objs[1] and objs[1].finished
+				elseif GetQuestLogLeaderBoard then
+					_, _, vComplete = GetQuestLogLeaderBoard(1, vQuestIndex)
+				end
 
 				return true, vComplete
 			end
@@ -7266,29 +7354,28 @@ Outfitter._ExtendedCompareTooltip = {}
 
 function Outfitter._ExtendedCompareTooltip:Construct()
 	hooksecurefunc("GameTooltip_ShowCompareItem", function (pShift)
-		if not Outfitter.Settings.Options.DisableItemComparisons then
-			if OutfitterAPI.IsWoW1002 then
-				if TooltipUtil.ShouldDoItemComparison() then
-					self:ShowCompareItem()
-				end
-			else
-				self:ShowCompareItem()
-			end
-		end
-	end)
+        if not Outfitter.Settings.Options.DisableItemComparisons then
+            -- Midnight 12.x always uses TooltipUtil
+            if TooltipUtil.ShouldDoItemComparison(self) then
+                if not IsModifiedClick("COMPAREITEMS") then
+                    self:HideCompareItems()
+                else
+                    self:ShowCompareItem()
+                end
+            end
+        end
+    end)
 
-	if not OutfitterAPI.IsWoW1002 then
-		GameTooltip:HookScript("OnHide", function ()
-			self:HideCompareItems()
-		end)
+    -- Midnight 12.x always uses TooltipDataProcessor (IsWoW1002 always true)
+    GameTooltip:HookScript("OnHide", function ()
+        self:HideCompareItems()
+    end)
 
-		GameTooltip:HookScript("OnTooltipSetItem", function ()
-			if not IsModifiedClick("COMPAREITEMS") then
-				self:HideCompareItems()
-			end
-		end)
-
-	end
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function ()
+        if not IsModifiedClick("COMPAREITEMS") then
+            self:HideCompareItems()
+        end
+    end)
 
 	self.Tooltips = {}
 	self.NumTooltipsShown = 0
@@ -7337,7 +7424,7 @@ function Outfitter._ExtendedCompareTooltip:ShowCompareItem()
 	self.AnchorToTooltip = nil
 
 	for vIndex, vShoppingTooltip in ipairs(GameTooltip.shoppingTooltips) do
-		if OutfitterAPI.IsWoW1002 then Mixin(vShoppingTooltip, GameTooltipDataMixin) end
+		Mixin(vShoppingTooltip, GameTooltipDataMixin)  -- always true in Midnight 12.x
 		local _, vShoppingLink = vShoppingTooltip:GetItem()
 		local vShoppingItemInfo = Outfitter:GetItemInfoFromLink(vShoppingLink)
 
@@ -7461,7 +7548,7 @@ function Outfitter._ExtendedCompareTooltip:ShoppingItemIsShown(pItemInfo)
 			break
 		end
 
-		if OutfitterAPI.IsWoW1002 then Mixin(vTooltip, GameTooltipDataMixin) end
+		Mixin(vTooltip, GameTooltipDataMixin)  -- always true in Midnight 12.x
 
 		local _, vTooltipLink = vTooltip:GetItem()
 		local vTooltipItemInfo = Outfitter:GetItemInfoFromLink(vTooltipLink)
@@ -7499,17 +7586,16 @@ function Outfitter._ExtendedCompareTooltip:AddShoppingLink(pTitle, pItemName, pL
 
 	if not vTooltip then
 		vTooltip = CreateFrame("GameTooltip", "OutfitterCompareTooltip"..self.NumTooltipsShown, UIParent, "ShoppingTooltipTemplate")
-		if OutfitterAPI.IsWoW1002 then
-		  Mixin(vTooltip, GameTooltipDataMixin)
-		  vTooltip:SetScript("OnUpdate", function ()
-			  if not TooltipUtil.ShouldDoItemComparison() then
-				  self:HideCompareItems()
-			  end
-		  end)
-		  vTooltip:SetScript("OnHide", function ()
-			  self:HideCompareItems()
-		  end)
-		end
+		-- Midnight 12.x: always apply GameTooltipDataMixin and TooltipUtil check
+		Mixin(vTooltip, GameTooltipDataMixin)
+		vTooltip:SetScript("OnUpdate", function ()
+			if not TooltipUtil.ShouldDoItemComparison(vTooltip) then
+				self:HideCompareItems()
+			end
+		end)
+		vTooltip:SetScript("OnHide", function ()
+			self:HideCompareItems()
+		end)
 		vTooltip:SetOwner(UIParent, "ANCHOR_NONE")
 		vTooltip:Hide()
 
@@ -7658,7 +7744,7 @@ function Outfitter:GetIconIndex(pTexture)
 	vTexture = vTexture:lower()
 
 	for vIndex = INVSLOT_FIRST_EQUIPPED, INVSLOT_LAST_EQUIPPED do
-		local vTexture2 = GetInventoryItemTexture("player", vIndex)
+		local vTexture2 = OutfitterAPI:GetInventoryItemTexture("player", vIndex)
 
 		if vTexture2 then
 			_, _, vTexture2 = vTexture2:find("([^\\]*)$")
@@ -7827,9 +7913,15 @@ function Outfitter:SynchronizeCompanionState()
 	end
 end
 
-function Outfitter:GetTalentTreeName(pIndex)
+-- GetTalentTreeName renamed to GetSpecName in 12.0.7 (Midnight)
+-- Old name kept as alias so any saved custom scripts referencing it still work
+function Outfitter:GetSpecName(pIndex)
 	local _, vName = GetSpecializationInfo(pIndex)
 	return vName
+end
+
+function Outfitter:GetTalentTreeName(pIndex)
+	return self:GetSpecName(pIndex)
 end
 
 function Outfitter:Run(pText)
@@ -7905,12 +7997,24 @@ function Outfitter._ListItem:enableSecureActions()
 		return
 	end
 
-	self.SecureAction:Show()
-	self.SecureAction:SetParent(self)
-	self.SecureAction:SetAllPoints()
+	if not self.SecureAction then
+		return
+	end
 
-	-- Configure the secure button
-	if self.isOutfitItem then
+	local parent = self:GetParent()
+
+	if parent and parent:IsProtected() then
+		self.SecureAction:SetParent(parent)
+	else
+		return
+	end
+
+	self.SecureAction:ClearAllPoints()
+	self.SecureAction:SetPoint("TOPLEFT", self, "TOPLEFT", 0, 0)
+	self.SecureAction:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+	self.SecureAction:Show()
+
+	if self.isOutfitItem and self.outfitItem and self.outfitItem.Location then
 		self.SecureAction:SetAttribute("type", nil)
 		self.SecureAction:SetAttribute("target-bag", self.outfitItem.Location.BagIndex)
 		self.SecureAction:SetAttribute("target-slot", self.outfitItem.Location.BagSlotIndex)
